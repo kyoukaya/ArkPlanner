@@ -2,20 +2,21 @@ from sanic import Sanic, response
 from MaterialPlanning import MaterialPlanning
 import time, codecs
 
-app = Sanic()
+app = Sanic(name="ArkPlanner")
 
-app.static('/', './ArkPlannerWeb/index.html')
-app.static('/css', './ArkPlannerWeb/css')
-app.static('/fonts', './ArkPlannerWeb/fonts')
-app.static('/img', './ArkPlannerWeb/img')
-app.static('/js', './ArkPlannerWeb/js')
+app.static("/", "./ArkPlannerWeb/index.html")
+app.static("/css", "./ArkPlannerWeb/css")
+app.static("/fonts", "./ArkPlannerWeb/fonts")
+app.static("/img", "./ArkPlannerWeb/img")
+app.static("/js", "./ArkPlannerWeb/js")
 
 
 mp = MaterialPlanning()
 mp.update()
 last_updated = time.time()
 
-@app.route("/plan", methods=['POST'])
+
+@app.route("/plan", methods=["POST"])
 async def plan(request):
     global last_updated
     try:
@@ -44,19 +45,18 @@ async def plan(request):
         if time.time() - last_updated > 60 * 30:
             mp.update()
             last_updated = time.time()
-        dct = mp.get_plan(required_dct, owned_dct, False, 
-                          outcome=extra_outc, exp_demand=exp_demand, gold_demand=gold_demand)
+        dct = mp.get_plan(
+            required_dct,
+            owned_dct,
+            False,
+            outcome=extra_outc,
+            exp_demand=exp_demand,
+            gold_demand=gold_demand,
+        )
     except ValueError as e:
         return response.json({"error": True, "reason": str(e)})
 
     return response.json(dct)
-
-# def get_costume_counts(countdir='costume_counts.txt'):
-#     global costume_counts
-#     try:
-#         with codecs.open(countdir, 'r', 'utf-8') as f:
-#             costume_counts = f.readline()
-
 
 
 if __name__ == "__main__":
