@@ -4,12 +4,6 @@ import time, codecs
 
 app = Sanic(name="ArkPlanner")
 
-app.static("/", "./ArkPlannerWeb/index.html")
-app.static("/css", "./ArkPlannerWeb/css")
-app.static("/fonts", "./ArkPlannerWeb/fonts")
-app.static("/img", "./ArkPlannerWeb/img")
-app.static("/js", "./ArkPlannerWeb/js")
-
 
 mp = MaterialPlanning()
 mp.update()
