@@ -1,3 +1,4 @@
+from typing import Any, Dict, Tuple
 import numpy as np
 import urllib.request, json, time, os, copy, sys
 from scipy.optimize import linprog
@@ -5,6 +6,8 @@ from scipy.optimize import linprog
 global penguin_url, headers
 penguin_url = "https://penguin-stats.io/PenguinStats/api/"
 headers = {"User-Agent": "ArkPlanner"}
+
+gamedata_langs = ["en_US", "ja_JP", "ko_KR", "zh_CN"]
 
 
 class MaterialPlanning(object):
@@ -16,11 +19,12 @@ class MaterialPlanning(object):
         url_rules="formula",
         path_stats="data/matrix.json",
         path_rules="data/formula.json",
+        gamedata_path="https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/master/{}/gamedata/excel/item_table.json",
     ):
         """
         Object initialization.
         Args:
-            filter_freq: int or None. The lowest frequence that we consider.
+            filter_freq: int or None. The lowest frequency that we consider.
                 No filter will be applied if None.
             url_stats: string. url to the dropping rate stats data.
             url_rules: string. url to the composing rules data.
@@ -35,9 +39,14 @@ class MaterialPlanning(object):
                 end=" ",
             )
             material_probs, convertion_rules = request_data(
-                penguin_url + url_stats, penguin_url + url_rules, path_stats, path_rules
+                penguin_url + url_stats,
+                penguin_url + url_rules,
+                path_stats,
+                path_rules,
+                gamedata_path,
             )
             print("done.")
+        self.itemdata = request_itemdata(gamedata_path)
 
         filtered_probs = []
         for dct in material_probs["matrix"]:
@@ -91,6 +100,7 @@ class MaterialPlanning(object):
                 pass
         self.item_array = np.array(item_array)
         self.item_id_array = np.array(item_id_array)
+        self.item_id_rv = {v: k for k, v in enumerate(item_id_array)}
         self.item_dct_rv = {v: k for k, v in enumerate(item_array)}
 
         # To construct mapping from stage id to stage names and vice versa.
@@ -143,7 +153,7 @@ class MaterialPlanning(object):
         cost_gold_offset[self.stage_dct_rv["S4-6"]] -= 3228 * gold_unit
         cost_gold_offset[self.stage_dct_rv["S5-2"]] -= 2484 * gold_unit
 
-        # To build equavalence relationship from convert_rule_dct.
+        # To build equivalence relationship from convert_rule_dct.
         self.convertions_dct = {}
         convertion_matrix = []
         convertion_outc_matrix = []
@@ -152,18 +162,18 @@ class MaterialPlanning(object):
             convertion = np.zeros(len(self.item_array))
             convertion[self.item_dct_rv[rule["name"]]] = 1
 
-            comp_dct = {comp["name"]: comp["count"] for comp in rule["costs"]}
-            self.convertions_dct[rule["name"]] = comp_dct
-            for iname in comp_dct:
-                convertion[self.item_dct_rv[iname]] -= comp_dct[iname]
+            comp_dct = {comp["id"]: comp["count"] for comp in rule["costs"]}
+            self.convertions_dct[rule["id"]] = comp_dct
+            for item_id in comp_dct:
+                convertion[self.item_id_rv[item_id]] -= comp_dct[item_id]
             convertion_matrix.append(copy.deepcopy(convertion))
 
             outc_dct = {outc["name"]: outc["count"] for outc in rule["extraOutcome"]}
             outc_wgh = {outc["name"]: outc["weight"] for outc in rule["extraOutcome"]}
             weight_sum = float(sum(outc_wgh.values()))
-            for iname in outc_dct:
-                convertion[self.item_dct_rv[iname]] += (
-                    outc_dct[iname] * 0.175 * outc_wgh[iname] / weight_sum
+            for item_id in outc_dct:
+                convertion[self.item_dct_rv[item_id]] += (
+                    outc_dct[item_id] * 0.175 * outc_wgh[item_id] / weight_sum
                 )
             convertion_outc_matrix.append(convertion)
 
@@ -213,6 +223,7 @@ class MaterialPlanning(object):
         url_rules="formula",
         path_stats="data/matrix.json",
         path_rules="data/formula.json",
+        gamedata_path="https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/master/{}/gamedata/excel/item_table.json",
     ):
         """
         To update parameters when probabilities change or new items added.
@@ -224,8 +235,13 @@ class MaterialPlanning(object):
         """
         print("Requesting data from web resources (i.e., penguin-stats.io)...", end=" ")
         material_probs, convertion_rules = request_data(
-            penguin_url + url_stats, penguin_url + url_rules, path_stats, path_rules
+            penguin_url + url_stats,
+            penguin_url + url_rules,
+            path_stats,
+            path_rules,
+            gamedata_path,
         )
+        self.itemdata = request_itemdata(gamedata_path)
         print("done.")
 
         if filter_freq:
@@ -306,6 +322,7 @@ class MaterialPlanning(object):
         outcome=False,
         gold_demand=True,
         exp_demand=True,
+        language="en_US",
     ):
         """
         User API. Computing the material plan given requirements and owned items.
@@ -353,11 +370,16 @@ class MaterialPlanning(object):
         for i, t in enumerate(n_looting):
             if t >= 0.1:
                 target_items = np.where(self.probs_matrix[i] >= 0.02)[0]
-                items = {
-                    self.item_array[idx]: float2str(self.probs_matrix[i, idx] * t)
-                    for idx in target_items
-                    if len(self.item_id_array[idx]) == 5
-                }
+                items = {}
+                for idx in target_items:
+                    if len(self.item_id_array[idx]) != 5:
+                        continue
+                    try:
+                        name_str = self.itemdata[language][int(self.item_id_array[idx])]
+                    except KeyError:
+                        # Fallback to CN if language is unavailable
+                        name_str = self.item_id_array[idx]
+                    items[name_str] = float2str(self.probs_matrix[i, idx] * t)
                 stage = {
                     "stage": self.stage_array[i],
                     "count": float2str(t),
@@ -368,25 +390,41 @@ class MaterialPlanning(object):
         syntheses = []
         for i, t in enumerate(n_convertion):
             if t >= 0.1:
-                target_item = self.item_array[np.argmax(self.convertion_matrix[i])]
-                materials = {
-                    k: str(v * int(t + 0.9))
-                    for k, v in self.convertions_dct[target_item].items()
-                }
+                idx = np.argmax(self.convertion_matrix[i])
+                item_id = self.item_id_array[idx]
+                try:
+                    target_id = self.itemdata[language][int(item_id)]
+                except KeyError:
+                    target_id = self.item_array[idx]
+                materials = {}
+                for k, v in self.convertions_dct[item_id].items():
+                    try:
+                        key_name = self.itemdata[language][int(k)]
+                    except KeyError:
+                        key_name = self.itemdata[language][int(k)]
+                    materials[key_name] = str(v * int(t + 0.9))
                 synthesis = {
-                    "target": target_item,
+                    "target": target_id,
                     "count": str(int(t + 0.9)),
                     "materials": materials,
                 }
                 syntheses.append(synthesis)
             elif t >= 0.05:
-                target_item = self.item_array[np.argmax(self.convertion_matrix[i])]
-                materials = {
-                    k: "%.1f" % (v * t)
-                    for k, v in self.convertions_dct[target_item].items()
-                }
+                idx = np.argmax(self.convertion_matrix[i])
+                item_id = self.item_id_array[idx]
+                try:
+                    target_name = self.itemdata[language][int(item_id)]
+                except KeyError:
+                    target_name = self.item_array[idx]
+                materials = {}
+                for k, v in self.convertions_dct[item_id].items():
+                    try:
+                        key_name = self.itemdata[language][int(k)]
+                    except KeyError:
+                        key_name = self.itemdata[language][int(k)]
+                    materials[key_name] = "%.1f" % (v * t)
                 synthesis = {
-                    "target": target_item,
+                    "target": target_name,
                     "count": "%.1f" % t,
                     "materials": materials,
                 }
@@ -399,15 +437,18 @@ class MaterialPlanning(object):
             {"level": "4", "items": []},
             {"level": "5", "items": []},
         ]
-        for i, item in enumerate(self.item_array):
-            if len(self.item_id_array[i]) == 5 and y[i] > 0.1:
-                item_value = {"name": item, "value": "%.2f" % y[i]}
+        for i, item_id in enumerate(self.item_id_array):
+            if len(item_id) == 5 and y[i] > 0.1:
+                try:
+                    item_name = self.itemdata[language][int(item_id)]
+                except KeyError:
+                    item_name = self.item_array[i]
+                item_value = {"name": item_name, "value": "%.2f" % y[i]}
                 values[int(self.item_id_array[i][-1]) - 1]["items"].append(item_value)
         for group in values:
             group["items"] = sorted(
                 group["items"], key=lambda k: float(k["value"]), reverse=True
             )
-
         res = {
             "cost": int(cost),
             "gcost": int(gcost),
@@ -464,8 +505,7 @@ def Cartesian_sum(arr1, arr2):
     return arr_r
 
 
-def float2str(x, offset=0.5):
-
+def float2str(x: float, offset=0.5):
     if x < 1.0:
         out = "%.1f" % x
     else:
@@ -473,7 +513,9 @@ def float2str(x, offset=0.5):
     return out
 
 
-def request_data(url_stats, url_rules, save_path_stats, save_path_rules):
+def request_data(
+    url_stats, url_rules, save_path_stats, save_path_rules, gamedata_path
+) -> Tuple[Any, Any]:
     """
     To request probability and convertion rules from web resources and store at local.
     Args:
@@ -508,6 +550,25 @@ def request_data(url_stats, url_rules, save_path_stats, save_path_rules):
             json.dump(convertion_rules, outfile)
 
     return material_probs, convertion_rules
+
+
+def request_itemdata(gamedata_path: str) -> Dict[str, Dict[int, str]]:
+    itemdata = {}
+    for lang in gamedata_langs:
+        req = urllib.request.Request(gamedata_path.format(lang), None, headers)
+        with urllib.request.urlopen(req) as response:
+            response = urllib.request.urlopen(req)
+            # filter out unneeded data
+            data = {}
+            for k, v in json.loads(response.read().decode())["items"].items():
+                try:
+                    i = int(k)
+                except ValueError:
+                    continue
+                data[i] = v["name"]
+            itemdata[lang] = data
+
+    return itemdata
 
 
 def load_data(path_stats, path_rules):
