@@ -82,15 +82,16 @@ class MaterialPlanning(object):
         """
         # To count items and stages.
         additional_items = {"30135": u"D32钢", "30125": u"双极纳米片", "30115": u"聚合剂"}
-        exp_unit = 200 * 30.0 / 7400
+        exp_unit = 200 * (30.0 - 0.048 * 30) / 7400
         gold_unit = 0.004
         exp_worths = {
             "2001": exp_unit,
             "2002": exp_unit * 2,
             "2003": exp_unit * 5,
             "2004": exp_unit * 10,
+            "3003": exp_unit * 2,
         }
-        gold_worths = {"3003": gold_unit * 500}
+        gold_worths = {}
 
         item_dct = {}
         stage_dct = {}
@@ -136,9 +137,10 @@ class MaterialPlanning(object):
                     self.stage_dct_rv[dct["stage"]["code"]],
                     self.item_dct_rv[dct["item"]["name"]],
                 ] = dct["quantity"] / float(dct["times"])
-                cost_gold_offset[self.stage_dct_rv[dct["stage"]["code"]]] = -dct[
-                    "stage"
-                ]["apCost"] * (12 * gold_unit)
+                if cost_lst[self.stage_dct_rv[dct["stage"]["code"]]] != 0:
+                    cost_gold_offset[self.stage_dct_rv[dct["stage"]["code"]]] = -dct[
+                        "stage"
+                    ]["apCost"] * (12 * gold_unit)
             except ValueError:
                 pass
 
@@ -229,7 +231,7 @@ class MaterialPlanning(object):
     def update(
         self,
         filter_freq=20,
-        filter_stages=[],
+        filter_stages=None,
         url_stats="result/matrix?show_stage_details=true&show_item_details=true",
         url_rules="formula",
         path_stats="data/matrix.json",
@@ -379,6 +381,8 @@ class MaterialPlanning(object):
         gold_demand=True,
         exp_demand=True,
         language=None,
+        exclude=None,
+        non_cn_compat=False,
     ):
         """
         User API. Computing the material plan given requirements and owned items.
@@ -403,7 +407,40 @@ class MaterialPlanning(object):
         for k, v in requirement_dct.items():
             demand_lst[self.item_id_rv[k]] = v
         for k, v in deposited_dct.items():
-            demand_lst[self.item_id_rv[k]] -= v
+            demand_lst[self.item_dct_rv[k]] -= v
+
+        if exclude is None:
+            exclude = set()
+        else:
+            exclude = set(exclude)
+
+        is_stage_alive = []
+        for stage in self.stage_array:
+            if stage in exclude:
+                is_stage_alive.append(False)
+                continue
+            if non_cn_compat:
+                try:
+                    if int(stage.lstrip("S")[0]) > NON_CN_WORLD_NUM:
+                        is_stage_alive.append(False)
+                        continue
+                except ValueError:
+                    pass
+            is_stage_alive.append(True)
+
+        if exclude:
+            BackTrace = [
+                copy.copy(self.stage_array),
+                copy.copy(self.cost_lst),
+                copy.copy(self.probs_matrix),
+                copy.copy(self.cost_exp_offset),
+                copy.copy(self.cost_gold_offset),
+            ]
+            self.stage_array = self.stage_array[is_stage_alive]
+            self.cost_lst = self.cost_lst[is_stage_alive]
+            self.probs_matrix = self.probs_matrix[is_stage_alive]
+            self.cost_exp_offset = self.cost_exp_offset[is_stage_alive]
+            self.cost_gold_offset = self.cost_gold_offset[is_stage_alive]
 
         solution, dual_solution, excp_factor = self._get_plan_no_prioties(
             demand_lst, outcome, gold_demand, exp_demand
@@ -555,6 +592,13 @@ class MaterialPlanning(object):
                 ]
                 print("Level %d items: " % (i + 1))
                 print(", ".join(display_lst))
+
+        if exclude:
+            self.stage_array = BackTrace[0]
+            self.cost_lst = BackTrace[1]
+            self.probs_matrix = BackTrace[2]
+            self.cost_exp_offset = BackTrace[3]
+            self.cost_gold_offset = BackTrace[4]
 
         return res
 

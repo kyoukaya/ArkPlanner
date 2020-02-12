@@ -26,6 +26,7 @@ class PlanSchema(Schema):
     # Compatibility mode for non Chinese servers (EN/JP/KR) to only consider
     # content that is available to them.
     non_cn_compat = fields.Bool(missing=False)
+    exclude = fields.List(fields.Str(), missing=None)
     exp_demand = fields.Bool(missing=False)
     gold_demand = fields.Bool(missing=True)
     # A map of an item's name (in either of the 4 languages) or its ID,
@@ -62,7 +63,8 @@ async def plan(request):
             exp_demand=request["exp_demand"],
             gold_demand=request["gold_demand"],
             language=region_lang_map[request["out_lang"]],
-            noncn_compat=request["non_cn_compat"],
+            non_cn_compat=request["non_cn_compat"],
+            exclude=request["exclude"]
         )
     except ValueError as e:
         return response.json({"error": True, "reason": str(e)})
