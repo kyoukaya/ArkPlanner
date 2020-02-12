@@ -64,7 +64,7 @@ async def plan(request):
             gold_demand=request["gold_demand"],
             language=region_lang_map[request["out_lang"]],
             non_cn_compat=request["non_cn_compat"],
-            exclude=request["exclude"]
+            exclude=request["exclude"],
         )
     except ValueError as e:
         return response.json({"error": True, "reason": str(e)})
