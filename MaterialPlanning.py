@@ -111,7 +111,6 @@ class MaterialPlanning(object):
         self.item_array = np.array(item_array)
         self.item_id_array = np.array(item_id_array)
         self.item_id_rv = {int(v): k for k, v in enumerate(item_id_array)}
-        self.item_id_dct_rv = {k: int(v) for k, v in enumerate(item_id_array)}
         self.item_dct_rv = {v: k for k, v in enumerate(item_array)}
 
         # To construct mapping from stage id to stage names and vice versa.
@@ -331,8 +330,22 @@ class MaterialPlanning(object):
         return solution, dual_solution, excp_factor
 
     def convert_requirements(
-        self, requirement_dct: Union[None, Dict[Any, int]]
+        self, requirement_dct: Union[None, Dict[str, int]]
     ) -> Tuple[Dict[int, int], str]:
+        """
+        Converts a requirement dict with variable keys into a dict mapping an
+        item's ID to its quantity.
+        Args:
+            requirement_dct: a Dict[str, int] where the item keys are one of the
+                follow types: English name, Chinese name, Japanese name, Korean name,
+                or item ID.
+        Returns:
+            requirements: a Dict[int, int]
+            lang: the language successfully parsed language or "id"
+        Raises:
+            A BaseException initialized with all the KeyErrors that occured during
+            execution if the function was unable to parse the input dict.
+        """
         if requirement_dct is None:
             return {}, ""
         err_lst: List[BaseException] = []
@@ -594,6 +607,13 @@ def request_data(
 
 
 def request_itemdata(gamedata_path: str) -> Dict[str, Dict[int, str]]:
+    """
+    Pulls item data github sources.
+    Args:
+        gamedata_path: a format string that takes in 1 argument to format in the region name.
+    Returns:
+        itemdata: a dict mapping a region's name to a dict mapping an item ID to its name.
+    """
     itemdata = {}
     for lang in gamedata_langs:
         req = urllib.request.Request(gamedata_path.format(lang), None, headers)
