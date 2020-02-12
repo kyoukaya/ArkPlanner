@@ -8,7 +8,7 @@ from sanic import Sanic, response
 from MaterialPlanning import MaterialPlanning
 
 app = Sanic(name="ArkPlanner")
-mp = MaterialPlanning()
+mp = MaterialPlanning(dont_save_data=False)
 region_lang_map = {
     "en": "en_US",
     "jp": "ja_JP",
@@ -19,16 +19,6 @@ region_lang_map = {
 
 
 class PlanSchema(Schema):
-    # Output language, will match requirement language if not specified.
-    out_lang = fields.Str(missing="en", validate=validate.OneOf(["en", "cn", "jp", "kr", "id"]))
-    # Consider crafting byproducts
-    extra_outc = fields.Bool(missing=False)
-    # Compatibility mode for non Chinese servers (EN/JP/KR) to only consider
-    # content that is available to them.
-    non_cn_compat = fields.Bool(missing=False)
-    exclude = fields.List(fields.Str(), missing=None)
-    exp_demand = fields.Bool(missing=False)
-    gold_demand = fields.Bool(missing=True)
     # A map of an item's name (in either of the 4 languages) or its ID,
     # to a number representing the quantity desired.
     required = fields.Dict(
@@ -39,6 +29,16 @@ class PlanSchema(Schema):
     )
     # Items already in a user's possession.
     owned = fields.Dict(keys=fields.String(), values=fields.Integer(), missing=None)
+    # Output language, will match language used in required if not specified.
+    out_lang = fields.Str(missing="en", validate=validate.OneOf(["en", "cn", "jp", "kr", "id"]))
+    # Consider crafting byproducts
+    extra_outc = fields.Bool(missing=False)
+    # Compatibility mode for non Chinese servers (EN/JP/KR) to only consider
+    # content that is available to them.
+    non_cn_compat = fields.Bool(missing=False)
+    exclude = fields.List(fields.Str(), missing=None)
+    exp_demand = fields.Bool(missing=False)
+    gold_demand = fields.Bool(missing=True)
 
 
 schema = PlanSchema()
@@ -76,7 +76,7 @@ async def update_coro():
     while True:
         # Sleep an hour before checking for updates
         await asyncio.sleep(60 * 60)
-        mp.update()
+        mp.update(dont_save_data=True)
 
 
 if __name__ == "__main__":

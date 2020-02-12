@@ -15,16 +15,18 @@ headers = {"User-Agent": "ArkPlanner"}
 gamedata_langs = ["en_US", "ja_JP", "ko_KR", "zh_CN"]
 DEFAULT_LANG = "en_US"
 NON_CN_WORLD_NUM = 4
+FILTER_FREQ_DEFAULT = 500
 
 
 class MaterialPlanning(object):
     def __init__(
         self,
-        filter_freq=200,
+        filter_freq=FILTER_FREQ_DEFAULT,
         filter_stages=[],
         url_stats="result/matrix?show_stage_details=true&show_item_details=true",
         url_rules="formula",
         path_stats="data/matrix.json",
+        dont_save_data=False,
         path_rules="data/formula.json",
         gamedata_path="https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/"
         + "master/{}/gamedata/excel/item_table.json",
@@ -39,21 +41,27 @@ class MaterialPlanning(object):
             path_stats: string. local path to the dropping rate stats data.
             path_rules: string. local path to the composing rules data.
         """
-        try:
-            material_probs, convertion_rules = load_data(path_stats, path_rules)
-        except FileNotFoundError:
-            print(
-                "Requesting data from web resources (i.e., penguin-stats.io)...",
-                end=" ",
-            )
+        if not dont_save_data:
+            try:
+                material_probs, convertion_rules = load_data(path_stats, path_rules)
+            except FileNotFoundError:
+                material_probs, convertion_rules = request_data(
+                    penguin_url + url_stats,
+                    penguin_url + url_rules,
+                    path_stats,
+                    path_rules,
+                    gamedata_path,
+                )
+                print("done.")
+        else:
             material_probs, convertion_rules = request_data(
                 penguin_url + url_stats,
                 penguin_url + url_rules,
                 path_stats,
                 path_rules,
                 gamedata_path,
+                dont_save_data,
             )
-            print("done.")
         self.itemdata = request_itemdata(gamedata_path)
         self.itemdata_rv = {
             lang: {v: k for k, v in dct.items()} for lang, dct in self.itemdata.items()
@@ -230,13 +238,14 @@ class MaterialPlanning(object):
 
     def update(
         self,
-        filter_freq=20,
+        filter_freq=FILTER_FREQ_DEFAULT,
         filter_stages=None,
         url_stats="result/matrix?show_stage_details=true&show_item_details=true",
         url_rules="formula",
         path_stats="data/matrix.json",
         path_rules="data/formula.json",
         gamedata_path="https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/master/{}/gamedata/excel/item_table.json",
+        dont_save_data=False,
     ):
         """
         To update parameters when probabilities change or new items added.
@@ -246,20 +255,19 @@ class MaterialPlanning(object):
             path_stats: string. local path to the dropping rate stats data.
             path_rules: string. local path to the composing rules data.
         """
-        print("Requesting data from web resources (i.e., penguin-stats.io)...", end=" ")
         material_probs, convertion_rules = request_data(
             penguin_url + url_stats,
             penguin_url + url_rules,
             path_stats,
             path_rules,
             gamedata_path,
+            dont_save_data,
         )
         self.itemdata = request_itemdata(gamedata_path)
         self.itemdata_rv = {
             lang: {v: k for k, v in dct.items()} for lang, dct in self.itemdata.items()
         }
-        print("done.")
-        
+
         if filter_freq:
             if filter_stages is None:
                 filter_stages = []
@@ -615,7 +623,12 @@ def float2str(x: float, offset=0.5):
 
 
 def request_data(
-    url_stats, url_rules, save_path_stats, save_path_rules, gamedata_path
+    url_stats,
+    url_rules,
+    save_path_stats,
+    save_path_rules,
+    gamedata_path,
+    dont_save_data=False,
 ) -> Tuple[Any, Any]:
     """
     To request probability and convertion rules from web resources and store at local.
@@ -628,28 +641,31 @@ def request_data(
         material_probs: dictionary. Content of the stats json file.
         convertion_rules: dictionary. Content of the rules json file.
     """
-    try:
-        os.mkdir(os.path.dirname(save_path_stats))
-    except FileExistsError:
-        pass
-    try:
-        os.mkdir(os.path.dirname(save_path_rules))
-    except FileExistsError:
-        pass
+    if not dont_save_data:
+        try:
+            os.mkdir(os.path.dirname(save_path_stats))
+        except FileExistsError:
+            pass
+        try:
+            os.mkdir(os.path.dirname(save_path_rules))
+        except FileExistsError:
+            pass
 
     # TODO: async requests
     req = urllib.request.Request(url_stats, None, headers)
     with urllib.request.urlopen(req) as response:
         material_probs = json.loads(response.read().decode())
-        with open(save_path_stats, "w") as outfile:
-            json.dump(material_probs, outfile)
+        if not dont_save_data:
+            with open(save_path_stats, "w") as outfile:
+                json.dump(material_probs, outfile)
 
     req = urllib.request.Request(url_rules, None, headers)
     with urllib.request.urlopen(req) as response:
         response = urllib.request.urlopen(req)
         convertion_rules = json.loads(response.read().decode())
-        with open(save_path_rules, "w") as outfile:
-            json.dump(convertion_rules, outfile)
+        if not dont_save_data:
+            with open(save_path_rules, "w") as outfile:
+                json.dump(convertion_rules, outfile)
 
     return material_probs, convertion_rules
 
