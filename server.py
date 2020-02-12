@@ -20,7 +20,7 @@ region_lang_map = {
 
 class PlanSchema(Schema):
     # Output language, will match requirement language if not specified.
-    out_lang = fields.Str(validate=validate.OneOf(["en", "cn", "jp", "kr", "id"]))
+    out_lang = fields.Str(missing="en", validate=validate.OneOf(["en", "cn", "jp", "kr", "id"]))
     # Consider crafting byproducts
     extra_outc = fields.Bool(missing=False)
     # Compatibility mode for non Chinese servers (EN/JP/KR) to only consider

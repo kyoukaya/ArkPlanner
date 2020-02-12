@@ -543,6 +543,7 @@ class MaterialPlanning(object):
 
         res = {
             "lang": language,
+            "real_time": (time.time() - stt) * 1000,
             "cost": int(cost),
             "gcost": int(gcost),
             "gold": int(gold),
