@@ -538,15 +538,6 @@ class MaterialPlanning(object):
 
         return res
 
-
-def Cartesian_sum(arr1, arr2):
-    arr_r = []
-    for arr in arr1:
-        arr_r.append(arr + arr2)
-    arr_r = np.vstack(arr_r)
-    return arr_r
-
-
 def float2str(x: float, offset=0.5):
     if x < 1.0:
         out = "%.1f" % x
