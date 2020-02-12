@@ -22,7 +22,10 @@ class PlanSchema(Schema):
     # Output language, will match requirement language if not specified.
     out_lang = fields.Str(validate=validate.OneOf(["en", "cn", "jp", "kr", "id"]))
     # Consider crafting byproducts
-    craft_bonus = fields.Bool(missing=False)
+    extra_outc = fields.Bool(missing=False)
+    # Compatibility mode for non Chinese servers (EN/JP/KR) to only consider
+    # content that is available to them.
+    non_cn_compat = fields.Bool(missing=False)
     exp_demand = fields.Bool(missing=False)
     gold_demand = fields.Bool(missing=True)
     # A map of an item's name (in either of the 4 languages) or its ID,
@@ -55,10 +58,11 @@ async def plan(request):
             request["required"],
             request["owned"],
             False,
-            outcome=request["craft_bonus"],
+            outcome=request["extra_outc"],
             exp_demand=request["exp_demand"],
             gold_demand=request["gold_demand"],
             language=region_lang_map[request["out_lang"]],
+            noncn_compat=request["non_cn_compat"],
         )
     except ValueError as e:
         return response.json({"error": True, "reason": str(e)})
@@ -78,12 +82,12 @@ if __name__ == "__main__":
         import uvloop  # type: ignore
 
         asyncio.set_event_loop(uvloop.new_event_loop())
-        print("Using uvloop")
-    except:
-        print("Using asyncio loop")
-    serv_coro = app.create_server(
-        host="localhost", port=8000, return_asyncio_server=True
-    )
+    except ImportError:
+        # Allow development on Windows
+        pass
+
+    serv_coro = app.create_server(port=8000, return_asyncio_server=True)
+
     loop = asyncio.get_event_loop()
     signal(SIGINT, lambda s, f: loop.stop())
     serv_task = asyncio.ensure_future(serv_coro, loop=loop)
@@ -91,5 +95,5 @@ if __name__ == "__main__":
     asyncio.Task(update_coro(), loop=loop)  # type: ignore
     try:
         loop.run_forever()
-    except:
+    except BaseException:
         loop.stop()

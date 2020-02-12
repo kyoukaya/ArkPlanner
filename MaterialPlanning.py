@@ -14,6 +14,7 @@ headers = {"User-Agent": "ArkPlanner"}
 
 gamedata_langs = ["en_US", "ja_JP", "ko_KR", "zh_CN"]
 DEFAULT_LANG = "en_US"
+NON_CN_WORLD_NUM = 4
 
 
 class MaterialPlanning(object):
@@ -40,7 +41,7 @@ class MaterialPlanning(object):
         """
         try:
             material_probs, convertion_rules = load_data(path_stats, path_rules)
-        except ValueError:
+        except FileNotFoundError:
             print(
                 "Requesting data from web resources (i.e., penguin-stats.io)...",
                 end=" ",
@@ -147,7 +148,7 @@ class MaterialPlanning(object):
                     * dct["quantity"]
                     / float(dct["times"])
                 )
-            except ValueError:
+            except (KeyError, ValueError):
                 pass
 
             try:
@@ -156,7 +157,7 @@ class MaterialPlanning(object):
                     * dct["quantity"]
                     / float(dct["times"])
                 )
-            except ValueError:
+            except (KeyError, ValueError):
                 pass
 
         # Hardcoding: extra gold farmed.
@@ -582,11 +583,11 @@ def request_data(
     """
     try:
         os.mkdir(os.path.dirname(save_path_stats))
-    except ValueError:
+    except FileExistsError:
         pass
     try:
         os.mkdir(os.path.dirname(save_path_rules))
-    except ValueError:
+    except FileExistsError:
         pass
 
     # TODO: async requests

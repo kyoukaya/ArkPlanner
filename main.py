@@ -1,6 +1,6 @@
 import sys
 
-from MaterialPlanning import *
+from MaterialPlanning import MaterialPlanning
 
 if __name__ == "__main__":
 
