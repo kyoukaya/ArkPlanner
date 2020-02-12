@@ -259,8 +259,10 @@ class MaterialPlanning(object):
             lang: {v: k for k, v in dct.items()} for lang, dct in self.itemdata.items()
         }
         print("done.")
-
+        
         if filter_freq:
+            if filter_stages is None:
+                filter_stages = []
             filtered_probs = []
             for dct in material_probs["matrix"]:
                 if (
