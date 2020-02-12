@@ -1,6 +1,11 @@
+import copy
+import json
+import os
+import time
+import urllib.request
 from typing import Any, Dict, List, Tuple, Union
+
 import numpy as np
-import urllib.request, json, time, os, copy
 from scipy.optimize import linprog
 
 global penguin_url, headers
@@ -20,7 +25,8 @@ class MaterialPlanning(object):
         url_rules="formula",
         path_stats="data/matrix.json",
         path_rules="data/formula.json",
-        gamedata_path="https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/master/{}/gamedata/excel/item_table.json",
+        gamedata_path="https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/"
+        + "master/{}/gamedata/excel/item_table.json",
     ):
         """
         Object initialization.
@@ -34,7 +40,7 @@ class MaterialPlanning(object):
         """
         try:
             material_probs, convertion_rules = load_data(path_stats, path_rules)
-        except:
+        except ValueError:
             print(
                 "Requesting data from web resources (i.e., penguin-stats.io)...",
                 end=" ",
@@ -100,7 +106,7 @@ class MaterialPlanning(object):
                 float(k)
                 item_array.append(v)
                 item_id_array.append(k)
-            except:
+            except ValueError:
                 pass
         self.item_array = np.array(item_array)
         self.item_id_array = np.array(item_id_array)
@@ -133,7 +139,7 @@ class MaterialPlanning(object):
                 cost_gold_offset[self.stage_dct_rv[dct["stage"]["code"]]] = -dct[
                     "stage"
                 ]["apCost"] * (12 * gold_unit)
-            except:
+            except ValueError:
                 pass
 
             try:
@@ -142,7 +148,7 @@ class MaterialPlanning(object):
                     * dct["quantity"]
                     / float(dct["times"])
                 )
-            except:
+            except ValueError:
                 pass
 
             try:
@@ -151,7 +157,7 @@ class MaterialPlanning(object):
                     * dct["quantity"]
                     / float(dct["times"])
                 )
-            except:
+            except ValueError:
                 pass
 
         # Hardcoding: extra gold farmed.
@@ -197,10 +203,10 @@ class MaterialPlanning(object):
         """
         Object initialization.
         Args:
-            convertion_matrix: matrix of shape [n_rules, n_items]. 
+            convertion_matrix: matrix of shape [n_rules, n_items].
                 Each row represent a rule.
             convertion_cost_lst: list. Cost in equal value to the currency spent in convertion.
-            probs_matrix: sparse matrix of shape [n_stages, n_items]. 
+            probs_matrix: sparse matrix of shape [n_stages, n_items].
                 Items per clear (probabilities) at each stage.
             cost_lst: list. Costs per clear at each stage.
         """
@@ -538,6 +544,7 @@ class MaterialPlanning(object):
 
         return res
 
+
 def float2str(x: float, offset=0.5):
     if x < 1.0:
         out = "%.1f" % x
@@ -562,12 +569,13 @@ def request_data(
     """
     try:
         os.mkdir(os.path.dirname(save_path_stats))
-    except:
+    except ValueError:
         pass
     try:
         os.mkdir(os.path.dirname(save_path_rules))
-    except:
+    except ValueError:
         pass
+
     # TODO: async requests
     req = urllib.request.Request(url_stats, None, headers)
     with urllib.request.urlopen(req) as response:

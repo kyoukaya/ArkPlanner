@@ -1,4 +1,5 @@
 import sys
+
 from MaterialPlanning import *
 
 if __name__ == "__main__":
@@ -23,5 +24,11 @@ if __name__ == "__main__":
             owned_dct[" ".join(split[:-1])] = int(split[-1])
 
     mp.get_plan(
-        required_dct, owned_dct, True, outcome=True, gold_demand=False, exp_demand=True, language="en_US"
+        required_dct,
+        owned_dct,
+        True,
+        outcome=True,
+        gold_demand=False,
+        exp_demand=True,
+        language="en_US",
     )

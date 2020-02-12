@@ -8,16 +8,13 @@ from setuptools import setup
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
+
 setup(
-    name = "Arknight AutoPlanner",
-    version = "0.0.4",
-    author = "YC.Remar",
-    author_email = "ethan.ycx@gmail.com",
-    description = ("A tiny program that helps on material planning in Arknight"),
+    name="Arknight AutoPlanner",
+    version="0.0.4",
+    author="YC.Remar",
+    author_email="ethan.ycx@gmail.com",
+    description=("A tiny program that helps on material planning in Arknight"),
     # url = "http://packages.python.org/an_example_pypi_project",
-    install_requires=[
-        "numpy",
-        "scipy",
-        "sanic"
-      ],
+    install_requires=["numpy", "scipy", "sanic"],
 )

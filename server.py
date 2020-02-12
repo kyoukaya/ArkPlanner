@@ -1,11 +1,11 @@
 import asyncio
 from signal import SIGINT, signal
 
+from marshmallow import Schema, fields, validate
+from marshmallow.exceptions import ValidationError
 from sanic import Sanic, response
 
 from MaterialPlanning import MaterialPlanning
-from marshmallow import Schema, fields, validate
-from marshmallow.exceptions import ValidationError
 
 app = Sanic(name="ArkPlanner")
 mp = MaterialPlanning()
@@ -20,9 +20,7 @@ region_lang_map = {
 
 class PlanSchema(Schema):
     # Output language, will match requirement language if not specified.
-    out_lang = fields.Str(
-        validate=validate.OneOf(["en", "cn", "jp", "kr", "id"])
-    )
+    out_lang = fields.Str(validate=validate.OneOf(["en", "cn", "jp", "kr", "id"]))
     # Consider crafting byproducts
     craft_bonus = fields.Bool(missing=False)
     exp_demand = fields.Bool(missing=False)
@@ -60,7 +58,7 @@ async def plan(request):
             outcome=request["craft_bonus"],
             exp_demand=request["exp_demand"],
             gold_demand=request["gold_demand"],
-            language=region_lang_map[request["out_lang"]]
+            language=region_lang_map[request["out_lang"]],
         )
     except ValueError as e:
         return response.json({"error": True, "reason": str(e)})
@@ -77,7 +75,7 @@ async def update_coro():
 
 if __name__ == "__main__":
     try:
-        import uvloop # type: ignore
+        import uvloop  # type: ignore
 
         asyncio.set_event_loop(uvloop.new_event_loop())
         print("Using uvloop")
