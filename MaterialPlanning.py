@@ -1,6 +1,6 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple, Union
 import numpy as np
-import urllib.request, json, time, os, copy, sys
+import urllib.request, json, time, os, copy
 from scipy.optimize import linprog
 
 global penguin_url, headers
@@ -8,6 +8,7 @@ penguin_url = "https://penguin-stats.io/PenguinStats/api/"
 headers = {"User-Agent": "ArkPlanner"}
 
 gamedata_langs = ["en_US", "ja_JP", "ko_KR", "zh_CN"]
+DEFAULT_LANG = "en_US"
 
 
 class MaterialPlanning(object):
@@ -47,6 +48,9 @@ class MaterialPlanning(object):
             )
             print("done.")
         self.itemdata = request_itemdata(gamedata_path)
+        self.itemdata_rv = {
+            lang: {v: k for k, v in dct.items()} for lang, dct in self.itemdata.items()
+        }
 
         filtered_probs = []
         for dct in material_probs["matrix"]:
@@ -100,7 +104,8 @@ class MaterialPlanning(object):
                 pass
         self.item_array = np.array(item_array)
         self.item_id_array = np.array(item_id_array)
-        self.item_id_rv = {v: k for k, v in enumerate(item_id_array)}
+        self.item_id_rv = {int(v): k for k, v in enumerate(item_id_array)}
+        self.item_id_dct_rv = {k: int(v) for k, v in enumerate(item_id_array)}
         self.item_dct_rv = {v: k for k, v in enumerate(item_array)}
 
         # To construct mapping from stage id to stage names and vice versa.
@@ -165,7 +170,7 @@ class MaterialPlanning(object):
             comp_dct = {comp["id"]: comp["count"] for comp in rule["costs"]}
             self.convertions_dct[rule["id"]] = comp_dct
             for item_id in comp_dct:
-                convertion[self.item_id_rv[item_id]] -= comp_dct[item_id]
+                convertion[self.item_id_rv[int(item_id)]] -= comp_dct[item_id]
             convertion_matrix.append(copy.deepcopy(convertion))
 
             outc_dct = {outc["name"]: outc["count"] for outc in rule["extraOutcome"]}
@@ -242,6 +247,9 @@ class MaterialPlanning(object):
             gamedata_path,
         )
         self.itemdata = request_itemdata(gamedata_path)
+        self.itemdata_rv = {
+            lang: {v: k for k, v in dct.items()} for lang, dct in self.itemdata.items()
+        }
         print("done.")
 
         if filter_freq:
@@ -314,15 +322,41 @@ class MaterialPlanning(object):
 
         return solution, dual_solution, excp_factor
 
+    def convert_requirements(
+        self, requirement_dct: Union[None, Dict[Any, int]]
+    ) -> Tuple[Dict[int, int], str]:
+        if requirement_dct is None:
+            return {}, ""
+        err_lst: List[BaseException] = []
+        # Try parsing as IDs
+        try:
+            ret = {}
+            for k, v in requirement_dct.items():
+                ret[int(k)] = int(v)
+            return ret, "id"
+        except (ValueError, KeyError) as err:
+            err_lst.append(err)
+        # Try parsing as each lang
+        for lang, nameMap in self.itemdata_rv.items():
+            ret = {}
+            try:
+                for k, v in requirement_dct.items():
+                    ret[nameMap[k]] = int(v)
+                return ret, lang
+            except (ValueError, KeyError) as err:
+                err_lst.append(err)
+        # TODO: create custom exception class
+        raise BaseException(err_lst)
+
     def get_plan(
         self,
         requirement_dct,
-        deposited_dct={},
+        deposited_dct=None,
         print_output=True,
         outcome=False,
         gold_demand=True,
         exp_demand=True,
-        language="en_US",
+        language=None,
     ):
         """
         User API. Computing the material plan given requirements and owned items.
@@ -337,14 +371,18 @@ class MaterialPlanning(object):
             3: "Problem appears to be unbounded. ",
             4: "Numerical difficulties encountered.",
         }
-
-        demand_lst = np.zeros(len(self.item_array))
-        for k, v in requirement_dct.items():
-            demand_lst[self.item_dct_rv[k]] = v
-        for k, v in deposited_dct.items():
-            demand_lst[self.item_dct_rv[k]] -= v
-
         stt = time.time()
+        requirement_dct, requirement_lang = self.convert_requirements(requirement_dct)
+        if language is None:
+            language = requirement_lang
+        deposited_dct, _ = self.convert_requirements(None)
+
+        demand_lst = [0 for x in range(len(self.item_array))]
+        for k, v in requirement_dct.items():
+            demand_lst[self.item_id_rv[k]] = v
+        for k, v in deposited_dct.items():
+            demand_lst[self.item_id_rv[k]] -= v
+
         solution, dual_solution, excp_factor = self._get_plan_no_prioties(
             demand_lst, outcome, gold_demand, exp_demand
         )
@@ -356,12 +394,6 @@ class MaterialPlanning(object):
         gcost = np.dot(x[len(self.cost_lst) :], self.convertion_cost_lst) / 0.004
         gold = -np.dot(n_looting, self.cost_gold_offset) / 0.004
         exp = -np.dot(n_looting, self.cost_exp_offset) * 7400 / 30.0
-
-        if print_output:
-            print(
-                status_dct[status]
-                + (" Computed in %.4f seconds," % (time.time() - stt))
-            )
 
         if status != 0:
             raise ValueError(status_dct[status])
@@ -395,13 +427,13 @@ class MaterialPlanning(object):
                 try:
                     target_id = self.itemdata[language][int(item_id)]
                 except KeyError:
-                    target_id = self.item_array[idx]
+                    target_id = item_id
                 materials = {}
                 for k, v in self.convertions_dct[item_id].items():
                     try:
                         key_name = self.itemdata[language][int(k)]
                     except KeyError:
-                        key_name = self.itemdata[language][int(k)]
+                        key_name = k
                     materials[key_name] = str(v * int(t + 0.9))
                 synthesis = {
                     "target": target_id,
@@ -415,13 +447,13 @@ class MaterialPlanning(object):
                 try:
                     target_name = self.itemdata[language][int(item_id)]
                 except KeyError:
-                    target_name = self.item_array[idx]
+                    target_name = item_id
                 materials = {}
                 for k, v in self.convertions_dct[item_id].items():
                     try:
                         key_name = self.itemdata[language][int(k)]
                     except KeyError:
-                        key_name = self.itemdata[language][int(k)]
+                        key_name = k
                     materials[key_name] = "%.1f" % (v * t)
                 synthesis = {
                     "target": target_name,
@@ -442,14 +474,16 @@ class MaterialPlanning(object):
                 try:
                     item_name = self.itemdata[language][int(item_id)]
                 except KeyError:
-                    item_name = self.item_array[i]
+                    item_name = item_id
                 item_value = {"name": item_name, "value": "%.2f" % y[i]}
                 values[int(self.item_id_array[i][-1]) - 1]["items"].append(item_value)
         for group in values:
             group["items"] = sorted(
                 group["items"], key=lambda k: float(k["value"]), reverse=True
             )
+
         res = {
+            "lang": language,
             "cost": int(cost),
             "gcost": int(gcost),
             "gold": int(gold),
@@ -458,6 +492,12 @@ class MaterialPlanning(object):
             "syntheses": syntheses,
             "values": list(reversed(values)),
         }
+
+        if print_output:
+            print(
+                status_dct[status]
+                + (" Computed in %.4f seconds," % (time.time() - stt))
+            )
 
         if print_output:
             print(
@@ -535,7 +575,7 @@ def request_data(
         os.mkdir(os.path.dirname(save_path_rules))
     except:
         pass
-
+    # TODO: async requests
     req = urllib.request.Request(url_stats, None, headers)
     with urllib.request.urlopen(req) as response:
         material_probs = json.loads(response.read().decode())
@@ -558,7 +598,7 @@ def request_itemdata(gamedata_path: str) -> Dict[str, Dict[int, str]]:
         req = urllib.request.Request(gamedata_path.format(lang), None, headers)
         with urllib.request.urlopen(req) as response:
             response = urllib.request.urlopen(req)
-            # filter out unneeded data
+            # filter out unneeded data, we only care about ones with purely numerical IDs
             data = {}
             for k, v in json.loads(response.read().decode())["items"].items():
                 try:

@@ -1,4 +1,4 @@
-import sys, codecs
+import sys
 from MaterialPlanning import *
 
 if __name__ == "__main__":
@@ -10,16 +10,18 @@ if __name__ == "__main__":
 
     mp = MaterialPlanning(filter_stages=filter_stages)
 
-    with codecs.open("required.txt", "r", "utf-8") as f:
+    with open("required.txt", "r", encoding="utf-8") as f:
         required_dct = {}
         for line in f.readlines():
-            required_dct[line.split(" ")[0]] = int(line.split(" ")[1])
+            split = line.split(" ")
+            required_dct[" ".join(split[:-1])] = int(split[-1])
 
-    with codecs.open("owned.txt", "r", "utf-8") as f:
+    with open("owned.txt", "r", encoding="utf-8") as f:
         owned_dct = {}
         for line in f.readlines():
-            owned_dct[line.split(" ")[0]] = int(line.split(" ")[1])
+            split = line.split(" ")
+            owned_dct[" ".join(split[:-1])] = int(split[-1])
 
     mp.get_plan(
-        required_dct, owned_dct, True, outcome=True, gold_demand=False, exp_demand=True
+        required_dct, owned_dct, True, outcome=True, gold_demand=False, exp_demand=True, language="en_US"
     )
