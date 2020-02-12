@@ -9,21 +9,34 @@ from marshmallow.exceptions import ValidationError
 
 app = Sanic(name="ArkPlanner")
 mp = MaterialPlanning()
-# mp.update()
+region_lang_map = {
+    "en": "en_US",
+    "jp": "ja_JP",
+    "kr": "ko_KR",
+    "cn": "zh_CN",
+    "id": "id",
+}
 
 
 class PlanSchema(Schema):
-    region = fields.Str(missing="en", validate=validate.OneOf(["en", "cn", "jp", "kr"]))
-    extra_outc = fields.Bool(missing=False)
+    # Output language, will match requirement language if not specified.
+    out_lang = fields.Str(
+        validate=validate.OneOf(["en", "cn", "jp", "kr", "id"])
+    )
+    # Consider crafting byproducts
+    craft_bonus = fields.Bool(missing=False)
     exp_demand = fields.Bool(missing=False)
     gold_demand = fields.Bool(missing=True)
+    # A map of an item's name (in either of the 4 languages) or its ID,
+    # to a number representing the quantity desired.
     required = fields.Dict(
         keys=fields.String(),
         values=fields.Integer(),
         required=True,
         validate=validate.Length(min=1),
     )
-    owned = fields.Dict(keys=fields.Integer(), values=fields.Integer(), missing=None)
+    # Items already in a user's possession.
+    owned = fields.Dict(keys=fields.String(), values=fields.Integer(), missing=None)
 
 
 schema = PlanSchema()
@@ -44,9 +57,10 @@ async def plan(request):
             request["required"],
             request["owned"],
             False,
-            outcome=request["extra_outc"],
+            outcome=request["craft_bonus"],
             exp_demand=request["exp_demand"],
             gold_demand=request["gold_demand"],
+            language=region_lang_map[request["out_lang"]]
         )
     except ValueError as e:
         return response.json({"error": True, "reason": str(e)})
@@ -63,7 +77,7 @@ async def update_coro():
 
 if __name__ == "__main__":
     try:
-        import uvloop
+        import uvloop # type: ignore
 
         asyncio.set_event_loop(uvloop.new_event_loop())
         print("Using uvloop")

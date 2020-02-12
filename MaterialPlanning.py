@@ -296,7 +296,8 @@ class MaterialPlanning(object):
         excp_factor = 1.0
         dual_factor = 1.0
 
-        while excp_factor > 1e-5:
+        solution = None
+        for _ in range(5):
             solution = linprog(
                 c=cost,
                 A_ub=-A_ub,
@@ -308,7 +309,8 @@ class MaterialPlanning(object):
 
             excp_factor /= 10.0
 
-        while dual_factor > 1e-5:
+        dual_solution = None
+        for _ in range(5):
             dual_solution = linprog(
                 c=-np.array(demand_lst) * excp_factor * dual_factor,
                 A_ub=A_ub.T,
@@ -387,7 +389,7 @@ class MaterialPlanning(object):
             demand_lst, outcome, gold_demand, exp_demand
         )
         x, status = solution.x / excp_factor, solution.status
-        y, slack = dual_solution.x, dual_solution.slack
+        y = dual_solution.x
         n_looting, n_convertion = x[: len(self.cost_lst)], x[len(self.cost_lst) :]
 
         cost = np.dot(x[: len(self.cost_lst)], self.cost_lst)
@@ -419,7 +421,7 @@ class MaterialPlanning(object):
                 }
                 stages.append(stage)
 
-        syntheses = []
+        crafts = []
         for i, t in enumerate(n_convertion):
             if t >= 0.1:
                 idx = np.argmax(self.convertion_matrix[i])
@@ -440,7 +442,7 @@ class MaterialPlanning(object):
                     "count": str(int(t + 0.9)),
                     "materials": materials,
                 }
-                syntheses.append(synthesis)
+                crafts.append(synthesis)
             elif t >= 0.05:
                 idx = np.argmax(self.convertion_matrix[i])
                 item_id = self.item_id_array[idx]
@@ -460,7 +462,7 @@ class MaterialPlanning(object):
                     "count": "%.1f" % t,
                     "materials": materials,
                 }
-                syntheses.append(synthesis)
+                crafts.append(synthesis)
 
         values = [
             {"level": "1", "items": []},
@@ -489,7 +491,7 @@ class MaterialPlanning(object):
             "gold": int(gold),
             "exp": int(exp),
             "stages": stages,
-            "syntheses": syntheses,
+            "craft": crafts,
             "values": list(reversed(values)),
         }
 
@@ -515,7 +517,7 @@ class MaterialPlanning(object):
                 )
 
             print("\nSynthesize following items:")
-            for synthesis in syntheses:
+            for synthesis in crafts:
                 display_lst = [
                     k + "(%s) " % synthesis["materials"][k]
                     for k in synthesis["materials"]
