@@ -438,7 +438,7 @@ class MaterialPlanning(object):
                     pass
             is_stage_alive.append(True)
 
-        if exclude:
+        if exclude or non_cn_compat:
             BackTrace = [
                 copy.copy(self.stage_array),
                 copy.copy(self.cost_lst),
@@ -479,7 +479,7 @@ class MaterialPlanning(object):
                         name_str = self.itemdata[language][int(self.item_id_array[idx])]
                     except KeyError:
                         # Fallback to CN if language is unavailable
-                        name_str = self.item_id_array[idx]
+                        name_str = self.itemdata["zh_CN"][int(self.item_id_array[idx])]
                     items[name_str] = float2str(self.probs_matrix[i, idx] * t)
                 stage = {
                     "stage": self.stage_array[i],
@@ -496,13 +496,13 @@ class MaterialPlanning(object):
                 try:
                     target_id = self.itemdata[language][int(item_id)]
                 except KeyError:
-                    target_id = item_id
+                    target_id = self.itemdata["zh_CN"][int(item_id)]
                 materials = {}
                 for k, v in self.convertions_dct[item_id].items():
                     try:
                         key_name = self.itemdata[language][int(k)]
                     except KeyError:
-                        key_name = k
+                        key_name = self.itemdata["zh_CN"][int(k)]
                     materials[key_name] = str(v * int(t + 0.9))
                 synthesis = {
                     "target": target_id,
@@ -516,13 +516,13 @@ class MaterialPlanning(object):
                 try:
                     target_name = self.itemdata[language][int(item_id)]
                 except KeyError:
-                    target_name = item_id
+                    target_name = self.itemdata["zh_CN"][int(item_id)]
                 materials = {}
                 for k, v in self.convertions_dct[item_id].items():
                     try:
                         key_name = self.itemdata[language][int(k)]
                     except KeyError:
-                        key_name = k
+                        key_name = self.itemdata["zh_CN"][int(k)]
                     materials[key_name] = "%.1f" % (v * t)
                 synthesis = {
                     "target": target_name,
@@ -543,7 +543,7 @@ class MaterialPlanning(object):
                 try:
                     item_name = self.itemdata[language][int(item_id)]
                 except KeyError:
-                    item_name = item_id
+                    item_name = self.itemdata["zh_CN"][int(item_id)]
                 item_value = {"name": item_name, "value": "%.2f" % y[i]}
                 values[int(self.item_id_array[i][-1]) - 1]["items"].append(item_value)
         for group in values:
@@ -553,7 +553,6 @@ class MaterialPlanning(object):
 
         res = {
             "lang": language,
-            "real_time": (time.time() - stt) * 1000,
             "cost": int(cost),
             "gcost": int(gcost),
             "gold": int(gold),
