@@ -15,7 +15,7 @@ headers = {"User-Agent": "ArkPlanner"}
 gamedata_langs = ["en_US", "ja_JP", "ko_KR", "zh_CN"]
 DEFAULT_LANG = "en_US"
 NON_CN_WORLD_NUM = 4
-FILTER_FREQ_DEFAULT = 500
+FILTER_FREQ_DEFAULT = 100
 
 
 class MaterialPlanning(object):
@@ -335,7 +335,7 @@ class MaterialPlanning(object):
                 b_ub=cost,
                 method="interior-point",
             )
-            if solution.status != 4:
+            if dual_solution.status != 4:
                 break
 
             dual_factor /= 10.0

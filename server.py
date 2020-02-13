@@ -30,7 +30,9 @@ class PlanSchema(Schema):
     # Items already in a user's possession.
     owned = fields.Dict(keys=fields.String(), values=fields.Integer(), missing=None)
     # Output language, will match language used in required if not specified.
-    out_lang = fields.Str(missing="en", validate=validate.OneOf(["en", "cn", "jp", "kr", "id"]))
+    out_lang = fields.Str(
+        missing="en", validate=validate.OneOf(["en", "cn", "jp", "kr", "id"])
+    )
     # Consider crafting byproducts
     extra_outc = fields.Bool(missing=False)
     # Compatibility mode for non Chinese servers (EN/JP/KR) to only consider
