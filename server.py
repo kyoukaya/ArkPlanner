@@ -4,6 +4,7 @@ from signal import SIGINT, signal
 from marshmallow import Schema, fields, validate
 from marshmallow.exceptions import ValidationError
 from sanic import Sanic, response
+from sanic.exceptions import MethodNotSupported, NotFound
 
 from MaterialPlanning import MaterialPlanning
 
@@ -44,6 +45,27 @@ class PlanSchema(Schema):
 
 
 schema = PlanSchema()
+
+
+@app.exception(MethodNotSupported)
+async def post_only(request, exp):
+    if request.path == "/plan":
+        return response.text(
+            "Error: Method GET not allowed for URL /plan."
+            + " Only POST requests are allowed on this endpoint.",
+            status=405,
+        )
+    return response.text(
+        "Error: Method {} not allowed for URL {}".format(request.method, request.path),
+        status=405,
+    )
+
+
+@app.exception(NotFound)
+async def not_found(request, exp):
+    return response.text(
+        "Error: Requested URL {} not found".format(request.path), status=404
+    )
 
 
 @app.route("/plan", methods=["POST"])

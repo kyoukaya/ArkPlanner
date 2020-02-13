@@ -69,7 +69,6 @@ curl -XPOST 'https://ark.kyou.dev/plan' \
 ```
 
 ## Deployment
-----
 
 Deployable on Heroku, albeit rather slow (see https://ak.kyou.dev/plan). TODO: Heroku deploy instructions.
 
